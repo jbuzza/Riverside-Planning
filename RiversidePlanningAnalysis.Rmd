@@ -26,7 +26,7 @@ On 27-Nov-2017 the council submitted a planning application for Twickenham River
 
 The aim is to summarise the overall levels of support for the application and establish how this varies by location. 
 
-It should be noted that the council website does not restrict the number of comments an individual can make. In some cases, multiple comments have been submitted. One reason for this is that the length of each comment is resticted.
+It should be noted that the council website does not restrict the number of comments an individual can make. In some cases, multiple comments have been submitted. One reason for this is that the length of each comment is restricted.
 
 This analysis was performed in R and the output published using R Markdown.
 
@@ -55,13 +55,15 @@ df_observation$Type <- "Observation"
 
 ## Tidying the data
 
-The imported comments data was consolidated with comment type used as a factor. The postcode for each comment was extracted from the address as a distinct variable.
+The imported comments data was consolidated with comment type used as a factor. The postcode for each comment was extracted from the address as a distinct variable. Addresses were converted to all upper case.
 
 ```{r}
 df_all <- rbind(df_object,df_support,df_observation)
 df_all$Type<-parse_factor(df_all$Type, levels=c("Object","Support","Observation"))
 postcode_regex<-"[A-Za-z]{1,2}\\d{1,2}(?:\\s?(?:\\d?\\w{2}))?"
 df_all$Postcode<-str_extract(df_all$Description,postcode_regex)
+df_all$Description <- toupper(df_all$Description )
+
 ```
 
 ## Identify Missing Postcodes
@@ -71,7 +73,7 @@ A number of comments were submitted on behalf of organisations and did not have 
 ```{r results='asis'}
 library(knitr)
 missing <- filter(df_all, is.na(Postcode))
-kable(missing, caption =  "Comments listed without postcodes")
+kable(unique(missing), caption =  "Comments listed without postcodes")
 
 ```
 
@@ -96,7 +98,7 @@ df_all$Postcode[which(df_all$Description == "7 HOLMES ROAD")] <- "TW1 4RF"
 df_all$Postcode[which(df_all$Description == "9 BRIDGE ROAD ST MARGARETS")] <- "TW1 1RE"
 df_all$Postcode[which(df_all$Description == "FLAT 1 10A KING STREET")] <- "TW1 3SN"
 df_all$Postcode[which(df_all$Description == "MCDANIEL WOOLFE LTD 32 LARKFIELD ROAD")] <- "TW9 2PF"
-filter(df_all, is.na(Postcode))
+df_all$Postcode[which(df_all$Description == "TWICKENHAM RIVERSIDE PARK TEAM")] <- "TW1 4RF"
 
 ```
 
@@ -106,11 +108,11 @@ filter(df_all, is.na(Postcode))
 The total number of comments for each category are plotted in the following bar chart.
 
 ```{r}
-ggplot(data=df_all) + geom_bar(mapping=aes(x=Type,fill=Type)) + guides(fill=FALSE) + labs(x="Comment Type", y="Total number of comments",title="Twickenham Riverside planning application comments")
+ggplot(data=df_all) + geom_bar(mapping=aes(x=Type,fill=Type)) + guides(fill=FALSE) + labs(x="Comment Type", y="Total number of comments",title="Twickenham Riverside planning application comments") 
 
 ```
 
-Since multiple comments can be made from the same address we can see where this has occured and determine whether these should be combined. It should be noted that these are not duplicate comments and typically occur becuase of addiitonal points or due to the character restriction imposed when submitting comments.
+Since multiple comments can be made from the same address we can see where this has occurred and determine whether these should be combined. It should be noted that these are not duplicate comments and typically occur because of additional points or due to the character restriction imposed when submitting comments.
 
 Because of this and so that comment numbers match those on the council website these have, for now, been left as distinct comments for the analysis. 
 
@@ -124,9 +126,7 @@ kable(multiple, caption =  "Addresses submitting multiple comments")
 
 The data now includes includes postcodes for all comments but in order to place these on a map geo coordinates are needed. 
 
-R package PostcodesioR provides an API wrapper to the postcodes.io UK postcode lookup and geocoder. Note the package is not yet published on CRAN so must be installed from github.
-
-https://github.com/erzk/PostcodesioR
+R package [PostcodesioR](https://github.com/erzk/PostcodesioR) provides an API wrapper to the postcodes.io UK postcode lookup and geocoder. Note the package is not yet published on CRAN so must be installed from github.
 
 From the resulting data structure we require the longitude and latitude values which represent the geographical centre of the postcode.
 
@@ -151,11 +151,11 @@ for (row in 1:nrow(df_all)) {
 
 ## Getting a map 
 
-We need a map on which to plot the geographical points. The R package ggmap enables this. 
+We need a map on which to plot the geographical points. The R package ggmap enables this:
+
+D. Kahle and H. Wickham. ggmap: [Spatial Visualization with ggplot2](http://journal.r-project.org/archive/2013-1/kahle-wickham.pdf). The R Journal, 5(1), 144-161. 
 
 In this case, the options were to source a map centred on Twickenham Riverside from google with a "roadmap" style. 
-
-
 
 ```{r}
 library(maps)
@@ -180,7 +180,7 @@ It can be seen from the plot that most comments are concentrated around the site
 #ggmap(map, extent="device",legend="bottomright") + geom_point(data = df_all, aes(x = Longitude, y = Latitude, color = Type),alpha=0.7)
 
 df_grouped <- df_all %>% count(Postcode,Longitude,Latitude,Type)
-map2disp <- ggmap(map, extent= "device", legend="bottomright") + geom_point(data = df_grouped, aes(x = Longitude, y = Latitude, color = Type,size=n),alpha=1)+scale_size(guide = 'none')+ggtitle("Map of all comments")
+map2disp <- ggmap(map, extent= "device", legend="bottomright") + geom_point(data = df_grouped, aes(x = Longitude, y = Latitude, color = Type,size=n),alpha=0.7)+scale_size(guide = 'none')+ggtitle("Map of all comments")
 
 #map2disk <- ggsave(filename="riverside_analysis.png", plot=map2disp,width=6,height=6, units="in")
 
@@ -191,32 +191,33 @@ print(map2disp)
 
 It is more informative to focus on comments made from the Twickenham area using a zoom level of 13.
 
-Objections are fairly evenly spread around an area bounded by the A316 and the river. 
+Objections are fairly evenly spread around an area bounded by the A316 and the river. The largest cluster of objections is associated with the Twickenham Riverside Park Team.
 
 ```{r fig.width = 8, fig.height=8}
 map <- get_map(geo_location,source="google",maptype="roadmap", zoom=13,scale=2)
 
-map2disp <- ggmap(map, extent= "device", legend="bottomright") + geom_point(data = df_grouped, aes(x = Longitude, y = Latitude, color = Type,size=n),alpha=1)+scale_size(guide = 'none')+ggtitle("Map of  comments from Twickenham area")
+map2disp <- ggmap(map, extent= "device", legend="bottomright") + geom_point(data = df_grouped, aes(x = Longitude, y = Latitude, color = Type,size=n),alpha=0.7)+scale_size(guide = 'none')+ggtitle("Map of  comments from Twickenham area")
 
 print(map2disp)
 ```
 
-By increasing zoom level further to 15 it can be seen that there are distinct concentrations of supporting comments. Firstly, from Eel Pie Island which overlooks the site and secondly, from an area around Haggard Road / Victoria Road which would appear to coincide with the address given by the Riverside Action Group.
+By increasing zoom level further to 15 it can be seen that there are two distinct concentrations of supporting comments. Firstly, from Eel Pie Island which overlooks the site and secondly, from an area around Haggard Road / Victoria Road which would appear to coincide with the address given by the Riverside Action Group.
 
 ```{r fig.width = 8, fig.height=8}
 map <- get_map(geo_location,source="google",maptype="roadmap", zoom=15,scale=2)
 
-map2disp <- ggmap(map, extent= "device", legend="bottomright") + geom_point(data = df_grouped, aes(x = Longitude, y = Latitude, color = Type,size=n),alpha=1)+scale_size(guide = 'none')+ggtitle("Map of  comments nearest to development")
+map2disp <- ggmap(map, extent= "device", legend="bottomright") + geom_point(data = df_grouped, aes(x = Longitude, y = Latitude, color = Type,size=n),alpha=0.7)+scale_size(guide = 'none')+ggtitle("Map of  comments nearest to development")
 
 print(map2disp)
 ```
 
 ## Conclusions
 
-It has been possible to visualise the locations from which comments have been made and how these are distributed. The vast majority of comments have been received from within the Twickenham area. There are over twice as many objections and these are spread fairly evenly acorss an area between the river and the A316. Supporting comments are more highly clustered.
+It has been possible to visualise the locations from which comments have been made and how these are distributed. The vast majority of comments have been received from within the Twickenham area. There are well over twice as many objections and these are spread fairly evenly across an area between the river and the A316. Supporting comments are more highly clustered.
 
 ## Potential Improvements / Next Steps
 
 - Review if multiple comments from the same address should be consolidated
+- Plot Richmond-Upon-Thames boundary / Twickenham ward boundaries 
 - Perform analysis of the actual comment text to identify key trends
 - Address any feedback received
